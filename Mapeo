@@ -1,0 +1,12 @@
+package archivo.mapeo;
+
+public interface MapeoTabla
+{
+  /** base dato ------ objeto **/
+	
+	public String forward ( String nombre );
+	
+	/** objeto ----- base dato	 **/
+	
+	public String backward ( String nombre );
+}

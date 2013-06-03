@@ -1,0 +1,42 @@
+package archivo;
+
+import processing.core.*;
+import java.util.ArrayList;
+
+
+public class BD
+extends archivo.FuncSQL
+{  
+	public BD ( PApplet _papplet, String _database )
+	{
+		
+	}
+	 
+	public BD (  PApplet _papplet, String _server, String _database, String _user, String _pass)
+	{
+		super( _papplet, _server, _database, _user, _pass );
+		init();
+	}
+	
+	private void init ()
+	{
+		this.driver = "com.mysql.jdbc.Driver";
+		this.type = "mysql";
+		
+		this.url = "jdbc:" + type + "://" + server +  "/" + database;
+	
+	}
+	
+	public String[] getTableNames ()
+	{
+		if ( tableNames == null ) 
+		{
+			tableNames = new ArrayList<String>();
+			query( "SHOW TABLES" );
+			while ( next() ) {
+				tableNames.add( getObject("Tables_in_"+database).toString() );
+			}
+		}
+		return tableNames.toArray(new String[0]);
+	}
+}

@@ -312,7 +312,7 @@ abstract public class FuncSQL
 		}
 		catch ( java.sql.SQLException e )
 		{
-			//System.out.println( "SQL.next(): java.sql.SQLException.\r" );
+		
 			if ( DEBUG ) e.printStackTrace();
 		}
 		return false;
@@ -369,15 +369,7 @@ abstract public class FuncSQL
 	}
 	
 
-	/**
-	 *	Read an integer value from the specified field.
-	 *	Represents an INT / INTEGER type:
-	 *	http://java.sun.com/j2se/1.3/docs/guide/jdbc/getstart/mapping.html
-	 *	"8.9.6	Conversions by ResultSet.getXXX Methods"
-	 *
-	 *	@param	_field	The name of the field
-	 *	@return	int	Value of the field or 0
-	 */
+
 	public int getInt ( String _field )
 	{
 		
@@ -425,9 +417,9 @@ abstract public class FuncSQL
 	
 
 	
-	/**
-	Var Char (Lectura código Tabla)
-	 */
+
+	//Var Char (Lectura código Tabla)
+	
 	public String getString ( String _field )
 	{
 		if ( result == null )
@@ -473,7 +465,7 @@ abstract public class FuncSQL
 	{
 		if ( result == null )
 		{
-			System.out.println( "SQL.getObject(): You need to query() something first." );
+		
 			return null;
 		}
 		
@@ -483,7 +475,7 @@ abstract public class FuncSQL
 		}
 		catch ( java.sql.SQLException e )
 		{
-			System.out.println( "SQL.getObject(): java.sql.SQLException.\r" );
+			
 			if (DEBUG) e.printStackTrace();
 		}
 		return null;

@@ -1,0 +1,624 @@
+package archivo;
+
+import processing.core.*;
+import archivo.mapeo.*;
+
+import java.io.*;
+import java.sql.*;
+import java.lang.reflect.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.ArrayList;
+
+
+abstract public class FuncSQL
+{
+  PApplet papplet;
+
+	public String server;
+	public String database;
+	public String url;
+	public String user;
+	protected String pass;
+	public String driver = "";
+	public String type = "";
+
+	private int driverMinorVersion = -1;
+	private int driverMajorVersion = -1;
+	
+	public java.sql.Connection connection;
+	public String previousQuery;
+	
+	public java.sql.Statement statement;
+	public java.sql.ResultSet result;
+	
+	private boolean DEBUG = true;
+	private HashMap<ResultSet,String[]> columnNamesCache;
+	private MapeoTabla mapper;
+	private HashMap<Class,String> classToTableMap;
+	protected ArrayList<String> tableNames;
+	
+	public FuncSQL ()
+	
+	{
+		System.out.println(
+			"servidor bd usario pass appl"
+		);
+		
+		mapper = new archivo.mapeo.CasoTabla();
+	}
+		
+	public FuncSQL ( PApplet _pa, String _db )
+	{
+		this.user = "";
+		this.pass = "";
+		this.server = "";
+		
+		String f = _pa.dataPath(_db);
+		File ff = new File(f);
+		if ( !ff.exists() || !ff.canRead() )
+		{
+			f = _pa.sketchPath( _db );
+			ff = new File(f);
+			
+			if ( !ff.exists() || !ff.canRead() )
+			{
+				f = _db;
+				ff = new File(f);
+				
+				if ( !ff.exists() || !ff.canRead() )
+				{
+					System.err.println(
+						"Error no existe"
+						
+					);
+				}
+			}
+		}
+		
+		_pa.println( "Base de datos: " + f );
+		
+		this.database = f;
+	
+		this.url = "jdbc:" + type + ":" + database;
+	
+		this.papplet = _pa;
+		papplet.registerDispose( this );
+		mapper = new archivo.mapeo.CasoTabla();
+	}
+	
+		
+	public FuncSQL ( PApplet _pa, String _serv, String _db, String _u, String _p )
+	{
+		this.server = _serv;
+		this.database = _db;
+		
+		this.url = "jdbc:" + type + "://" + server +  "/" + database;
+		
+		this.user = _u;
+		this.pass = _p;
+		
+		this.papplet = _pa;
+		papplet.registerDispose( this );
+		mapper = new archivo.mapeo.CasoTabla();
+	}
+	
+	public void setDebug ( boolean yesNo )
+	{
+		DEBUG = yesNo;
+	}
+	
+
+	public boolean getDebug ()
+	{
+		return DEBUG;
+	}
+	
+
+	//Conexión 
+	
+	public boolean connect()
+	{
+		if ( driver == null || driver.equals("") ||
+			 type == null || type.equals("") )
+		{
+			System.out.println( "Controlador??" );
+			return false;
+		}
+		
+		try
+		{
+			Class.forName(driver);
+			connection = java.sql.DriverManager.getConnection(url, user, pass);
+			
+		}
+		catch (ClassNotFoundException e)
+		{
+			System.out.println( "Conexión??" );
+			if (DEBUG) e.printStackTrace();
+			return false;
+			
+		}
+		catch (java.sql.SQLException e)
+		{
+			System.out.println( "Conexión??" );
+			if (DEBUG) e.printStackTrace();
+			return false;
+			
+		}
+		
+		getTableNames();
+
+		try {
+			Driver jdbcDriver = java.sql.DriverManager.getDriver( url );
+			if ( jdbcDriver != null ) {
+				driverMinorVersion = jdbcDriver.getMinorVersion();
+				driverMajorVersion = jdbcDriver.getMajorVersion();
+
+				if ( DEBUG ) System.out.println( "Versión" + getDriverVersion() );
+			}
+		} catch ( SQLException sqle ) {
+			sqle.printStackTrace();
+		}
+		
+		return true;
+	}
+
+
+	
+	public String getDriverVersion ()
+	{
+		if ( connection == null ) {
+			System.out.println( " " );
+			return null;
+		} else if ( driver == null || driver.equals("") ) {
+			System.out.println( " " );
+			return null;
+		}
+		return driver + " " + driverMajorVersion + "." + driverMinorVersion;
+	}
+	
+	private void preQueryOrExecute () 
+	{
+		result = null;
+	}
+	
+	//Query
+	
+	public void execute ( String _sql )
+	{
+		preQueryOrExecute();
+		
+		query( _sql, false );
+	}
+
+
+
+	 
+	public void execute ( String _sql, Object ... args )
+	{
+		preQueryOrExecute();
+		
+		if ( args == null || args.length == 0 ) queryOrExecute( _sql, false );
+		
+		Method meth = null;
+		try {
+			meth = String.class.getMethod( 
+				"format", 
+				String.class, 
+				java.lang.reflect.Array.newInstance(Object.class,0).getClass() 
+			);
+		} catch ( Exception ex ) {
+			ex.printStackTrace();
+			return;
+		}
+		
+		String sql2 = null;
+		try {
+			sql2 = (String)meth.invoke( null, _sql, args );
+		} catch ( Exception ex ) {
+			if (DEBUG) ex.printStackTrace();
+		}
+		
+		queryOrExecute( sql2, false );
+	}
+	
+	
+	public void query ( String _sql )
+	{
+		preQueryOrExecute();
+		
+		queryOrExecute( _sql, true );
+	}
+
+	
+	public void query ( String _sql, Object ... args )
+	{
+		preQueryOrExecute();
+		
+		if ( args == null || args.length == 0 ) queryOrExecute( _sql, true );
+		
+		Method meth = null;
+		try {
+			meth = String.class.getMethod( 
+				"format", 
+				String.class, 
+				java.lang.reflect.Array.newInstance(Object.class,0).getClass() 
+			);
+		} catch ( Exception ex ) {
+			ex.printStackTrace();
+			return;
+		}
+
+		String sql2 = null;
+		try {
+			sql2 = (String)meth.invoke( null, _sql, args );
+		} catch ( Exception ex ) {
+			if (DEBUG) ex.printStackTrace();
+		}
+		
+		queryOrExecute( sql2, true );
+	}
+	
+
+	//Ojo Query imp
+	
+	private void queryOrExecute ( String _sql, boolean keep )
+	{
+		if ( connection == null )
+		{
+		
+			return;
+		}
+		
+		previousQuery = _sql;
+		
+		try
+		{
+			if ( statement == null )
+			{
+				statement = connection.createStatement();
+			}
+			
+			boolean hasResults = statement.execute( _sql );
+
+			if ( keep && hasResults )
+			{
+				this.result = statement.getResultSet();
+			}
+		}
+		catch ( java.sql.SQLException e )
+		{
+			
+			if (DEBUG) {
+				System.out.println( _sql );
+				e.printStackTrace();
+			}
+		}
+	}
+	
+
+	public boolean next ()
+	{	
+		if ( result == null )
+		{
+			System.out.println( "Query??" );
+			return false;
+		}
+		
+		try
+		{
+			return result.next();
+		}
+		catch ( java.sql.SQLException e )
+		{
+			//System.out.println( "SQL.next(): java.sql.SQLException.\r" );
+			if ( DEBUG ) e.printStackTrace();
+		}
+		return false;
+	}
+	
+
+	//Nombres Tabla (Query get Table name) 
+	
+	abstract public String[] getTableNames ();
+	
+
+	public String[] getColumnNames ()
+	{
+		String[] colNames = null;
+		
+		if ( result == null )
+		{
+			
+			return null;
+		}
+		
+			
+		java.sql.ResultSetMetaData meta = null;
+		try {
+			meta = result.getMetaData();
+		} catch ( SQLException sqle ) {
+			if (DEBUG) sqle.printStackTrace();
+			return null;
+		}
+		
+		if ( meta != null ) 
+		{
+			try {
+				colNames = new String[ meta.getColumnCount() ];
+				for ( int i = 1, k = meta.getColumnCount(); i <= k; i++ ) 
+				{
+					colNames[i-1] = meta.getColumnName( i );
+				}
+			} catch ( SQLException sqle ) {
+				if (DEBUG) sqle.printStackTrace();
+				return null;
+			}
+		}
+		
+			
+		return colNames;
+	}
+	
+
+
+	public java.sql.Connection getConnection ()
+	{
+		return connection;
+	}
+	
+
+	/**
+	 *	Read an integer value from the specified field.
+	 *	Represents an INT / INTEGER type:
+	 *	http://java.sun.com/j2se/1.3/docs/guide/jdbc/getstart/mapping.html
+	 *	"8.9.6	Conversions by ResultSet.getXXX Methods"
+	 *
+	 *	@param	_field	The name of the field
+	 *	@return	int	Value of the field or 0
+	 */
+	public int getInt ( String _field )
+	{
+		
+		
+		if ( result == null )
+		{
+			
+			return 0;
+		}
+		
+		try
+		{
+			return result.getInt( _field );
+		}
+		catch ( java.sql.SQLException e )
+		{
+			
+			if (DEBUG) e.printStackTrace();
+		}
+		return 0;
+	}
+	
+	/** Funciones SQL JDBC (Doc 5.1)
+	 * 
+	 */
+	public int getInt ( int _column )
+	{
+		if ( result == null )
+		{
+			
+			return 0;
+		}
+		
+		try
+		{
+			return result.getInt( _column );
+		}
+		catch ( java.sql.SQLException e )
+		{
+		
+			if (DEBUG) e.printStackTrace();
+		}
+		return 0;
+	}
+	
+
+	
+	/**
+	Var Char (Lectura código Tabla)
+	 */
+	public String getString ( String _field )
+	{
+		if ( result == null )
+		{
+			
+			return null;
+		}
+		
+		try
+		{
+			return result.getString( _field );
+		}
+		catch ( java.sql.SQLException e )
+		{
+			
+			if (DEBUG) e.printStackTrace();
+		}
+		return null;
+	}
+
+	
+	public String getString ( int _column )
+	{
+		if ( result == null )
+		{
+		
+			return null;
+		}
+		
+		try
+		{
+			return result.getString( _column );
+		}
+		catch ( java.sql.SQLException e )
+		{
+			
+			if (DEBUG) e.printStackTrace();
+		}
+		return null;
+	}
+
+	public Object getObject ( String _field )
+	{
+		if ( result == null )
+		{
+			System.out.println( "SQL.getObject(): You need to query() something first." );
+			return null;
+		}
+		
+		try
+		{
+			return result.getObject( _field );
+		}
+		catch ( java.sql.SQLException e )
+		{
+			System.out.println( "SQL.getObject(): java.sql.SQLException.\r" );
+			if (DEBUG) e.printStackTrace();
+		}
+		return null;
+	}
+	
+
+	
+	public Object getObject ( int _column )
+	{
+		if ( result == null )
+		{
+			
+			return null;
+		}
+		
+		try
+		{
+			return result.getObject( _column );
+		}
+		catch ( java.sql.SQLException e )
+		{
+		
+			if (DEBUG) e.printStackTrace();
+		}
+		return null;
+	}
+
+	
+	//Salida y limpiar
+	
+	public void close()
+	{
+		dispose();
+	}
+	
+	
+	
+	public void dispose ()
+	{
+		if ( result != null )
+		{
+			try
+			{
+				result.close();
+			}
+			catch ( java.sql.SQLException e ) { ; }
+			
+			result = null;
+		}
+		
+		if ( statement != null )
+		{
+			try
+			{
+				statement.close();
+			}
+			catch ( java.sql.SQLException e ) { ; }
+			
+			statement = null;
+		}
+		
+		if ( connection != null )
+		{
+			try
+			{
+				connection.close();
+			}
+			catch ( java.sql.SQLException e ) { ; }
+			
+			connection = null;
+		}
+	}
+	
+
+	//Mapeo
+	
+	public void setNameMapper ( MapeoTabla mapper )
+	{
+		this.mapper = mapper;
+	}
+	
+
+	public MapeoTabla getNameMapper ()
+	{
+		return mapper;
+	}
+	
+	
+	public void setFromRow ( Object object )
+	{
+		if ( object == null ) {
+			
+			return;
+		}
+		
+		if ( result == null ) {
+			
+			return;
+		}
+		
+		String[] colNames = getColumnNames();
+		if ( colNames == null )
+		{
+		
+			return;
+		}
+		
+		if ( colNames.length > 0 ) 
+		{
+			Class Clase = null;
+			try {
+				Clase = Class.forName("Shadaba");
+			} catch ( Exception e ) {
+				if (DEBUG) e.printStackTrace();
+			}
+			if ( Clase != null ) {
+				Method meth = null;
+				try {
+					meth = Clase.getMethod(
+						"setFromRow",
+						new Class[]{ FuncSQL.class, Object.class }
+					);
+				} catch ( Exception e ) {
+					if (DEBUG) e.printStackTrace();
+				}
+				
+				if ( meth != null ) {
+					try {
+						meth.invoke( null, this, object );
+					} catch ( Exception e ) {
+						if (DEBUG) e.printStackTrace();
+					}
+				}
+			}
+		}
+	}
+
+}

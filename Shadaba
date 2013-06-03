@@ -1,0 +1,119 @@
+
+/** Comunicación SQL, BASE DATOS TESIS **/
+
+import archivo.*;
+import archivo.mapeo.*;
+import java.lang.reflect.*;
+
+
+public class Shadaba
+{
+  public static void setFromRow ( FuncSQL db, Object object )
+	{
+		String[] colNames = db.getColumnNames();
+		if ( colNames == null || colNames.length == 0 ) return;
+		
+		Class Clase = object.getClass();
+		for ( String colName : colNames ) 
+		{	
+			// Información Mapeo
+			
+			String fieldName = colName;
+			MapeoTabla mapper = db.getNameMapper();
+			if ( mapper != null ) 
+			{
+				fieldName = mapper.forward( colName );
+			}
+			
+			// Dato TESIS 
+			
+			Object val = null;
+			try {
+				val = db.getObject(colName);
+			} catch  (Exception e) {
+				if (db.getDebug()) e.printStackTrace();
+			}
+			if ( val == null ) {
+				if (db.getDebug()) {
+					System.err.println( "NULL" );
+					System.err.println( colName );
+				}
+				continue; 
+			}
+			
+			Field f = null;
+			try {
+				f = Clase.getField( fieldName );
+			} catch ( Exception e ) {	
+				if (db.getDebug()) e.printStackTrace();
+			}
+			if ( f != null ) 
+			{
+				try {
+					f.set( object, val );
+					continue;
+				} catch  (Exception e) {
+					if (db.getDebug()) e.printStackTrace();
+				}
+			}
+			
+			
+			Method[] meths = null;
+			try {
+				meths = Clase.getMethods();
+			} catch ( Exception e ) {
+				if (db.getDebug()) e.printStackTrace();
+			}
+			if ( meths != null && meths.length > 0 ) 
+			{
+				// String setterName = db.nameToSetter(fieldName); (ERROR ESCRITURA -- REVISAR)
+			
+			//	for ( Method meth : meths ) 
+			//	{
+			//		if ( meth.getName().equals(setterName) ||
+			//			 meth.getName().equals(fieldName) 
+			//			 ) 
+					{
+						
+						try {
+			//				meth.invoke( object, new Object[]{val} );
+							break;
+						} catch ( Exception e ) {
+							if (db.getDebug()) e.printStackTrace();
+						}
+					}
+				}
+			}
+		}
+	//}
+	
+	public static Object[] getValuesFromObject ( BD db, Field[] fields, Method[] getters, Object object )
+	{
+		if ( db == null || object == null ) return null;
+		if ( fields == null || getters == null ) return null;
+		if ( fields.length != getters.length ) return null;
+		
+		Object[] vals = new Object[fields.length];
+		
+		for ( int i = 0; i < vals.length; i++ ) {
+			try {
+				if ( fields[i] != null )
+					vals[i] = fields[i].get(object);
+				else if ( getters[i] != null )
+					vals[i] = getters[i].invoke(object);
+				else
+				{
+					System.err.println(String.format(
+						"getValuesFromObject() : Valor?."
+					));
+					return null;
+				}
+			} catch ( Exception e ) {
+				e.printStackTrace();
+				return null;
+			}
+		}
+		
+		return vals;
+	}
+}
